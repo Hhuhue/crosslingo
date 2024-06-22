@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "crossword"
+version = "0.1.0"
+description = ""
+authors = ["hhuhue <hhuhue@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pandas = "^2.2.2"
+tabulate = "^0.9.0"
+termcolor = "^2.4.0"
+tqdm = "^4.66.4"
+
+[tool.poetry.group.dev.dependencies]
+seaborn = "^0.13.2"
+ipykernel = "^6.29.4"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
