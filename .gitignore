@@ -1,4 +1,11 @@
-data
+# Python files
 .venv
-
 __pycache__
+
+# Tests
+.coverage
+coverage.xml
+#test.log
+
+# Data
+data
