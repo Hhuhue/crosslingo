@@ -5,7 +5,6 @@ __pycache__
 # Tests
 .coverage
 coverage.xml
-#test.log
 
 # Data
 data

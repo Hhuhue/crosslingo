@@ -71,10 +71,16 @@ class WordGrid:
                 self.logger.warning(f"Word interference detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
         elif x + len(word) < self.shape[0] and self.puzzle[x + len(word), y] != EMPTY_CELL:
-            # There is a letter just after the beginning of the word
+            # There is a letter just after the end of the word
             if self.logger:
                 self.logger.warning(f"Word interference detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
+        elif any([word[i] != l for i, l in self.get_letters(position, direction, len(word))]):
+            # Make sure the word doesn't replace letters already present
+            if self.logger:
+                self.logger.warning(f"Letter conflict detected while trying to place '{word}' at {(x, y)}")
+            is_valid = False
+        
         
         if do_unflip:
             self.flip()
@@ -83,7 +89,6 @@ class WordGrid:
 
 
     def add_word(self, position: tuple, direction: Direction, word: str) -> bool:
-        
         if direction == Direction.ACROSS:
             self.flip()
             position = (position[1], position[0])
@@ -95,28 +100,28 @@ class WordGrid:
             self.puzzle[x:x + len(word), y] = list(word.lower())
             self.state[x:x + len(word), y] |= direction.value
         
-        if direction == Direction.ACROSS:
+        if self.flipped:
             self.flip()
         
         return is_valid
 
 
     def get_letters(self, position: tuple, direction: Direction, length: int):
+        do_unflip = False
+        if direction == Direction.ACROSS and not self.flipped:
+            self.flip()
+            position = (position[1], position[0])
+            do_unflip = True
+        
         y, x = position
         letters = []
-        
-        if direction == Direction.ACROSS:
-            self.flip()
-            x, y = position
-        else:
-            y, x = position
             
         for i, letter in enumerate(self.puzzle[x:x + length, y]):
             if letter == EMPTY_CELL:
                 continue
             letters.append((i, letter))
         
-        if direction == Direction.ACROSS:
+        if do_unflip:
             self.flip()
         
         return letters
