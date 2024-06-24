@@ -181,6 +181,33 @@ class TestWordGrid(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertTrue(all(["conflict" in line for line in lines]))
         
+    def test_validate_word_should_return_false_when_new_word_sides_touches_other_word(self):
+        # Arrange
+        shape = (5, 10)
+        word_1 = "hello"
+        word_2 = "halo"
+        grid = WordGrid(shape, self.logger)
+
+        grid.puzzle[1, 2:2 + len(word_1)] = list(word_1)
+        grid.state[1, 2:2 + len(word_1)] |= Direction.ACROSS.value
+        grid.puzzle[1:1 + len(word_2), 2] = list(word_2)
+        grid.state[1:1 + len(word_2), 2] |= Direction.DOWN.value
+        interfering_word = "cart"
+        
+        # Action
+        across_valid = grid.validate_word((0, 0), Direction.ACROSS, interfering_word)
+        down_valid = grid.validate_word((7, 0), Direction.DOWN, interfering_word)
+        
+        # Assert
+        self.assertFalse(across_valid)
+        self.assertFalse(down_valid)
+        
+        self.stream.seek(0)
+        lines = self.stream.readlines()
+        print(lines)
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(["Side" in line for line in lines]))
+        
     def test_validate_word_should_return_true_when_word_in_bounds_in_empty_grid(self):
         # Arrange
         shape = (5, 10)

@@ -21,6 +21,10 @@ class Direction(Enum):
             return cls.ACROSS
         else:
             return direction
+        
+class ValidationMode:
+    SOFT = 0
+    HARD = 1
 
 class WordGrid:
     def __init__(self, shape: tuple, logger: Logger = None) -> None:
@@ -30,23 +34,39 @@ class WordGrid:
         self.logger = logger
         self.flipped = False
 
+
     def __str__(self) -> str:
         return str(tabulate(self.puzzle, tablefmt="plain"))
+
     
     def __repr__(self) -> str:
         return str(self)
+
+    
+    def __validate_word_sides(self, x: int, y: int, direction: Direction, word: str, mode: ValidationMode) -> bool:      
+        word_region = self.state[x:x+len(word), :]             
+        word_sides =  [y + o for o in [-1, 1] if 0 <= y + o < self.shape[1]]
+        side_letters = word_region[word_region[:, y] == Direction.NONE.value][:, word_sides]
+        
+        if mode == ValidationMode.SOFT:
+            return not (side_letters & Direction.flip(direction).value).any()
+        else:
+            return (side_letters == Direction.NONE.value).all()
+    
     
     def flip(self):
         self.puzzle = self.puzzle.T
         self.shape = self.shape[::-1]
         self.state = self.state.T
         self.flipped = not self.flipped
+
     
     def reset(self) -> None:
         self.puzzle[:] = EMPTY_CELL
         self.state[:] = 0
+
         
-    def validate_word(self, position: tuple, direction: Direction, word: str) -> bool:
+    def validate_word(self, position: tuple, direction: Direction, word: str, mode: ValidationMode = ValidationMode.SOFT) -> bool:
         do_unflip = False
         if direction == Direction.ACROSS and not self.flipped:
             self.flip()
@@ -65,22 +85,26 @@ class WordGrid:
             if self.logger:
                 self.logger.warning(f"Word overlap detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
-        elif x - 1 > 0 and self.puzzle[x - 1, y] != EMPTY_CELL:
+        elif x - 1 >= 0 and self.puzzle[x - 1, y] != EMPTY_CELL:
             # There is a letter just before the beginning of the word
             if self.logger:
-                self.logger.warning(f"Word interference detected while trying to place '{word}' at {(x, y)}")
+                self.logger.warning(f"Start of word interference detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
         elif x + len(word) < self.shape[0] and self.puzzle[x + len(word), y] != EMPTY_CELL:
             # There is a letter just after the end of the word
             if self.logger:
-                self.logger.warning(f"Word interference detected while trying to place '{word}' at {(x, y)}")
+                self.logger.warning(f"End of word interference detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
         elif any([word[i] != l for i, l in self.get_letters(position, direction, len(word))]):
             # Make sure the word doesn't replace letters already present
             if self.logger:
                 self.logger.warning(f"Letter conflict detected while trying to place '{word}' at {(x, y)}")
             is_valid = False
-        
+        elif not self.__validate_word_sides(x, y, direction, word, mode):
+            # Make sure the word isn't touching another word above or below in opposite direction
+            if self.logger:
+                self.logger.warning(f"Side of word interference detected while trying to place '{word}' at {(x, y)}")
+            is_valid = False
         
         if do_unflip:
             self.flip()
