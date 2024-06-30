@@ -2,8 +2,10 @@ from itertools import product
 import logging
 import random
 
+from gensim.models import Word2Vec
 import pandas as pd
 from pandas import DataFrame
+import numpy as np
 from tqdm import tqdm
 
 from word_grid import WordGrid, Direction
@@ -20,17 +22,25 @@ def get_logger():
     logger.addHandler(console_handler)
     return logger
 
-
-def load_dictionary(shape: tuple) -> dict:
+   
+def load_dictionary() -> dict:
     word_index = pd.read_csv("data/word_index.csv", encoding='utf-8')
     dictionary = word_index[word_index["lang_code"] == "en"]
     dictionary["word"] = dictionary["word"].astype(str)
     dictionary = dictionary[dictionary["len"] >= MIN_WORD_LEN]
-    dictionary = dictionary[dictionary["len"] <= max(shape)]
-    dictionary = dictionary[~dictionary["word"].str.contains(r"[0-9]")]
+    dictionary = dictionary[~dictionary["word"].str.contains(r"[0-9 '-]")]
     print(len(dictionary))
     return dictionary
-        
+
+def load_word2vec(lang_code: str) -> Word2Vec:
+    if lang_code == "de":
+        return Word2Vec.load("data/deu_wikipedia_2021_1M/word2vec.model")
+    elif lang_code == "en":
+        return Word2Vec.load("data/eng_wikipedia_2016_1M/word2vec.model")
+    elif lang_code == "es":
+        return Word2Vec.load("data/spa_wikipedia_2021_1M/word2vec.model")
+    elif lang_code == "fra":
+        return Word2Vec.load("data/fra_wikipedia_2021_1M/word2vec.model")
 
 def get_candidates(puzzle: WordGrid, dictionary: DataFrame, position: tuple, direction: Direction, blacklist: list) -> DataFrame:
     if direction == Direction.ACROSS:
@@ -54,19 +64,19 @@ def get_candidates(puzzle: WordGrid, dictionary: DataFrame, position: tuple, dir
         
     return candidates
 
+def create_crossword(puzzle: WordGrid, dictionary: DataFrame, n_word: int):
+    seed = random.randint(0, 1000)
 
-def create_crossword(puzzle: WordGrid, dictionary: DataFrame):
-    n = 0
+    random.seed(seed)
     direction = Direction.DOWN
     word_list = []
-    puzzle.reset()
+    #snapshots = []
     positions = {
-        Direction.DOWN: {pos: [] for pos in product(range(puzzle.shape[1]), range(puzzle.shape[0] - MIN_WORD_LEN))},
-        Direction.ACROSS: {pos: [] for pos in product(range(puzzle.shape[1] - MIN_WORD_LEN), range(puzzle.shape[0]))}
+        Direction.DOWN: {pos: [] for pos in product(range(puzzle.shape[1]), range(puzzle.shape[0] - MIN_WORD_LEN + 1))},
+        Direction.ACROSS: {pos: [] for pos in product(range(puzzle.shape[1] - MIN_WORD_LEN + 1), range(puzzle.shape[0]))}
     }
-
-    pbar = tqdm()
-    while n < 12:
+    pbar = tqdm(total=n_word)
+    while len(word_list) < n_word:
         if len(positions[direction]) == 0:
             if len(positions[Direction.flip(direction)]) == 0:
                 break
@@ -75,37 +85,37 @@ def create_crossword(puzzle: WordGrid, dictionary: DataFrame):
         position = random.choice(list(positions[direction]))
         
         blacklist = positions[direction][position] + word_list
-        candidates = get_candidates(puzzle, dictionary, position, direction, blacklist)
+        candidates = get_candidates(puzzle, position, direction, blacklist)
 
         if len(candidates) == 0:
             positions[direction].pop(position, None)
             continue
         
         try:
-            word = candidates["word"].sample(1, weights=candidates.freq).item()
+            weights = np.log(np.log(dictionary.freq.fillna(1)) + 1) + dictionary.len
+            word = candidates.word.sample(1, weights=weights, random_state=seed).item()
         except:
-            word = candidates["word"].sample(1).item()
+            word = candidates.word.sample(1, random_state=12).item()
         
-        pbar.update(n)
-        #pbar.set_description(f"word: {word}, pos: {position}, dir: {direction.name.lower()}, cnd: {len(candidates)}, slots {len(positions[Direction.DOWN])}", refresh=True)
-        print(f"word: {word}, pos: {position}, dir: {direction.name.lower()}, cnd: {len(candidates)}, slots {len(positions[Direction.DOWN])}d {len(positions[Direction.ACROSS])}a")
+        pbar.update(1)
+        pbar.set_description(f"word: {word}, pos: {position}, dir: {direction.name.lower()}, cnd: {len(candidates)}, slots {len(positions[Direction.DOWN])}d {len(positions[Direction.ACROSS])}a", refresh=True)
         
         if puzzle.add_word(position, direction, word):
+            #snapshots.append(({"position": position, "direction": direction, "word": word}, deepcopy(puzzle)))
             if len(positions[Direction.flip(direction)]) > 0:
                 direction = Direction.flip(direction)
 
             positions[direction].pop(position, None)    
             word_list.append(word)
-            n += 1
-            print(puzzle)
         else:
             positions[direction][position].append(word)
+            logger.info(f"Can't place word {word} at {position}")
 
     print(word_list)
     print(puzzle)
     
 if __name__ == "__main__":
     logger = get_logger()
-    puzzle = WordGrid((5, 10), logger, False)
-    dictionary = load_dictionary(puzzle.shape)
-    create_crossword(puzzle)
+    puzzle = WordGrid((5, 10))
+    dictionary = load_dictionary()
+    create_crossword(puzzle, dictionary, 15)

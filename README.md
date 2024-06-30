@@ -11,6 +11,7 @@ python -m venv .venv
 .\.venv\Scripts\activate
 python -m pip install poetry
 poetry install
+pip install -e .
 ```
 
 **Download data:**

@@ -6,13 +6,18 @@ authors = ["hhuhue <hhuhue@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "3.11.9"
 pandas = "^2.2.2"
 tabulate = "^0.9.0"
 termcolor = "^2.4.0"
 tqdm = "^4.66.4"
 pytest-cov = "^5.0.0"
 pytest = "^8.2.2"
+nltk = "^3.8.1"
+gensim = "^4.3.2"
+scipy = "1.10.1"
+scikit-learn = "^1.5.0"
+invoke = "^2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 seaborn = "^0.13.2"

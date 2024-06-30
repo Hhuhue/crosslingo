@@ -241,6 +241,37 @@ class TestWordGrid(unittest.TestCase):
         # Assert
         self.assertTrue(is_valid_across)
         self.assertTrue(is_valid_down)
+        
+    def test_add_word_should_return_false_when_word_cant_be_placed(self):
+        # Arrange
+        shape = (5, 10)
+        word = "great"
+        grid = WordGrid(shape, self.logger)
+        
+        # Action
+        result_across = grid.add_word((9, 4), Direction.ACROSS, word)
+        result_down = grid.add_word((9, 4), Direction.DOWN, word)
+        
+        # Assert
+        self.assertFalse(result_across)
+        self.assertFalse(result_down)
+        self.assertTrue((grid.puzzle == EMPTY_CELL).all())
+        
+    def test_add_word_should_return_true_when_word_has_been_placed(self):
+        # Arrange
+        shape = (5, 10)
+        word = "great"
+        grid = WordGrid(shape, self.logger)
+        
+        # Action
+        result_across = grid.add_word((0, 0), Direction.ACROSS, word)
+        result_down = grid.add_word((0, 0), Direction.DOWN, word)
+        
+        # Assert
+        self.assertTrue(result_across)
+        self.assertTrue(result_down)
+        self.assertTrue(word, ''.join(grid.puzzle[0:len(word), 0]))
+        self.assertTrue(word, ''.join(grid.puzzle[0, 0:len(word)]))
 
 if __name__ == '__main__':
     unittest.main()
