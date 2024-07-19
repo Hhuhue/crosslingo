@@ -3,6 +3,7 @@ from logging import Logger
 
 import numpy as np
 from tabulate import tabulate
+from termcolor import colored
 
 EMPTY_CELL = '-'
 BLOCKER_CELL = '■'
@@ -53,6 +54,22 @@ class WordGrid:
         else:
             return (side_letters == Direction.NONE.value).all()
     
+    def color_print(self) -> None:
+        to_print = []
+        for chars, states in zip(self.puzzle, self.state):
+            data = []
+            for char, state in zip(chars, states):
+                if state & Direction.ACROSS.value and state & Direction.DOWN.value:
+                    color = "magenta"
+                elif state & Direction.ACROSS.value:
+                    color = "blue"
+                elif state & Direction.DOWN.value:
+                    color = "yellow"
+                else:
+                    color = "grey"
+                data.append(colored(char, color))
+            to_print.append(data)
+        print(tabulate(to_print))
     
     def flip(self):
         self.puzzle = self.puzzle.T
@@ -153,3 +170,4 @@ class WordGrid:
 
     def get_letter(self, position: tuple):
         return self.puzzle[position[1], position[0]]
+
