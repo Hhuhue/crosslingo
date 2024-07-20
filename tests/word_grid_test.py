@@ -1,28 +1,21 @@
 import unittest
-import logging
 import pytest
 from word_grid import WordGrid, Direction, EMPTY_CELL
 from io import StringIO
 
+from loguru import logger
 class TestWordGrid(unittest.TestCase):
     
     def setUp(self):
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.DEBUG)
         self.stream = StringIO()
-        console_handler = logging.StreamHandler(self.stream)
-        console_handler.setLevel(logging.DEBUG)
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-        self.logger = logger
+        logger.add(self.stream, level="DEBUG")
 
     def test_init_should_create_letter_and_state_arrays(self):
         # Arrange
         shape = (5, 10)
         
         # Action
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         
         # Assert
         self.assertEqual(tuple(grid.shape), shape)
@@ -50,7 +43,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "hat"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         grid.puzzle[1:1 + len(word), 1] = list(word)
         grid.state[1:1 + len(word), 1] |= Direction.DOWN.value
         
@@ -64,7 +57,7 @@ class TestWordGrid(unittest.TestCase):
     def test_get_letters_should_return_non_empty_letters_in_a_row_or_column_from_a_position(self):
         # Arrange
         shape = (5, 10)
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         word_1 = "eagle"
         word_2 = "angle"
         word_3 = "pet"
@@ -88,7 +81,7 @@ class TestWordGrid(unittest.TestCase):
         shape = (5, 10)
         position = (7, 2)
         word = "test"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         
         # Action
         across_valid = grid.validate_word(position, Direction.ACROSS, word)
@@ -107,7 +100,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "hat"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         grid.puzzle[1:1 + len(word), 1] = list(word)
         grid.state[1:1 + len(word), 1] |= Direction.DOWN.value
         grid.puzzle[2, 4:4 + len(word)] = list(word)
@@ -131,7 +124,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "hello"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
 
         grid.puzzle[2, 2:2 + len(word)] = list(word)
         grid.state[2, 2:2 + len(word)] |= Direction.ACROSS.value
@@ -159,7 +152,7 @@ class TestWordGrid(unittest.TestCase):
         shape = (5, 10)
         word_1 = "hello"
         word_2 = "halo"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
 
         grid.puzzle[1, 2:2 + len(word_1)] = list(word_1)
         grid.state[1, 2:2 + len(word_1)] |= Direction.ACROSS.value
@@ -186,7 +179,7 @@ class TestWordGrid(unittest.TestCase):
         shape = (5, 10)
         word_1 = "hello"
         word_2 = "halo"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
 
         grid.puzzle[1, 2:2 + len(word_1)] = list(word_1)
         grid.state[1, 2:2 + len(word_1)] |= Direction.ACROSS.value
@@ -212,7 +205,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "gated"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         
         # Action
         is_valid_across = grid.validate_word((3, 2), Direction.ACROSS, word)
@@ -227,7 +220,7 @@ class TestWordGrid(unittest.TestCase):
         shape = (5, 10)
         word_1 = "great"
         word_2 = "recall"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         grid.puzzle[0:len(word_1), 2] = list(word_1)
         grid.state[0:len(word_1), 2] |= Direction.DOWN.value
         grid.puzzle[1, 2:2 + len(word_2)] = list(word_2)
@@ -246,7 +239,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "great"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         
         # Action
         result_across = grid.add_word((9, 4), Direction.ACROSS, word)
@@ -261,7 +254,7 @@ class TestWordGrid(unittest.TestCase):
         # Arrange
         shape = (5, 10)
         word = "great"
-        grid = WordGrid(shape, self.logger)
+        grid = WordGrid(shape)
         
         # Action
         result_across = grid.add_word((0, 0), Direction.ACROSS, word)

@@ -18,6 +18,7 @@ gensim = "^4.3.2"
 scipy = "1.10.1"
 scikit-learn = "^1.5.0"
 invoke = "^2.2.0"
+loguru = "^0.7.2"
 
 [tool.poetry.group.dev.dependencies]
 seaborn = "^0.13.2"
