@@ -12,25 +12,19 @@ from pandas import DataFrame
 import numpy as np
 from tqdm import tqdm
 
+from words import WordIndex, Word
 from word_grid import WordGrid, Direction, ValidationMode
 
 MIN_WORD_LEN = 3
 
-
-class Word(str):
-    """Represents a crossword word placement"""
-
-    def __new__(cls, word: pd.Series, position: Tuple[int, int], direction: Direction):
-        obj = str.__new__(cls, word.word.item())
-        obj.meta = word
-        obj.direction = direction
-        obj.position = position
-        return obj
-
-
 class CrosswordStyle(Enum):
     AMERICAN = 0
     BRITISH = 1
+    
+class CluesMode(Enum):
+    DEFINITION = 0
+    SYNONYM = 1
+    PICTURE = 2
 
 
 class Crossword:
@@ -40,6 +34,19 @@ class Crossword:
         self.word_grid = word_grid
         self.words = words
         self.lang_from = lang_from
+        self.clues = []
+        
+    def load_clues(self, mode: CluesMode):
+        fetch_translation = self.words[0].meta.lang_code != self.lang_from
+        index = WordIndex()
+        for word in self.words:
+            if fetch_translation:
+                word = index.get_word_translation(word, self.lang_from)
+
+            if mode == CluesMode.DEFINITION:
+                word_data = index.get_word_data(word)
+                self.clues.append(random.choice(word_data["senses"]))
+        
 
 
 class CrosswordGenerator:
@@ -80,9 +87,8 @@ class CrosswordGenerator:
 
         if len(dictionary) == 0:
             raise ValueError(
-                f"No words found for language {lang_code}" + f" with theme {theme}"
-                if theme
-                else ""
+                f"No words found for language {lang_code}"
+                + (f" with theme {theme}" if theme else "")
             )
 
         return dictionary
@@ -124,7 +130,7 @@ class CrosswordGenerator:
         Returns:
             Crossword: A crossword instance with used words and word grid
         """
-        
+
         self.snapshots = []
         word_grid = WordGrid(shape)
         validation = (
@@ -133,6 +139,8 @@ class CrosswordGenerator:
             else ValidationMode.HARD
         )
         dictionary = self.__get_dictionary(lang_to or lang_from, theme)
+        dictionary = dictionary[dictionary["len"] <= max(shape)]
+
         direction = random.choice([Direction.DOWN, Direction.ACROSS])
         word_list = []
 
@@ -243,7 +251,9 @@ def generate_puzzle_template(shape: tuple, n_words: int) -> WordGrid:
 
     word_index = pd.DataFrame(data, columns=columns)
 
-    gen = CrosswordGenerator(word_index, CrosswordStyle.BRITISH, random.randint(0, 1000))
+    gen = CrosswordGenerator(
+        word_index, CrosswordStyle.BRITISH, random.randint(0, 1000)
+    )
     template = gen.generate(shape, "x", n_words)
     print(template.word_grid)
 
@@ -310,7 +320,7 @@ if __name__ == "__main__":
     logger.remove()
     logger.add(sys.stdout, level="ERROR")
 
-    word_index = pd.read_csv("data/word_index.csv", encoding="utf-8")
+    word_index = WordIndex().get_data()
     gen = CrosswordGenerator(word_index, CrosswordStyle.BRITISH, seed=23)
     crossword = gen.generate((10, 20), "en", 25)
     print(crossword.words)
