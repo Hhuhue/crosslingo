@@ -16,7 +16,7 @@ pip install -e .
 
 **Download data:**
 
-* Wiktionary words from [wikiextract ](https://github.com/tatuylonen/wiktextract)(2.2GB): https://kaikki.org/dictionary/raw-wiktextract-data.json
+* Wiktionary words from [wiktextract ](https://github.com/tatuylonen/wiktextract)(2.2GB): https://kaikki.org/dictionary/raw-wiktextract-data.json
 * Language corpus from [wortschatz](https://www.wortschatz.uni-leipzig.de/de/download) (~200MB each)):
   * French corpus: https://downloads.wortschatz-leipzig.de/corpora/fra_wikipedia_2021_1M.tar.gz
   * English corpus: https://downloads.wortschatz-leipzig.de/corpora/eng_wikipedia_2016_1M.tar.gz

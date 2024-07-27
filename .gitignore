@@ -8,4 +8,5 @@ poetry.lock
 coverage.xml
 
 # Data
-data
+data/*
+!data/*.sql 

@@ -114,3 +114,4 @@ class WordIndex:
 
         self.index = pd.DataFrame(word_index, columns=columns)
         self.index.to_csv("word_index.csv", index=False)
+
