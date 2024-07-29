@@ -117,6 +117,85 @@ def load_wiktextract():
     conn.close()
 
 
+def load_wiktionary_traductions():
+    conn = sqlite3.connect("data/words.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, language_code, source_index, position, word FROM words")
+
+    rows = cursor.fetchall()
+    word_lang_id = {}
+    index_id = {}
+
+    for word_id, lang_code, source_index, position, word in rows:
+        if (word, position, lang_code) not in word_lang_id:
+            word_lang_id[(word, position, lang_code)] = []
+            
+        if lang_code not in index_id:
+            index_id[lang_code] = {}
+        word_lang_id[(word, position, lang_code)].append(word_id)
+        index_id[lang_code][source_index] = word_id
+
+    for extract in glob.glob("data/*.jsonl"):
+        lang_code = os.path.basename(extract).split("-")[0]
+
+        count = 0
+        with open(extract, "r", encoding="utf-8") as fp:
+            for count, _ in enumerate(fp, 1):
+                pass
+
+        if count == 0:
+            continue
+
+        with open(extract, "r", encoding="utf-8") as file:
+            for index, line in tqdm(enumerate(file), total=count, desc=lang_code):
+                data = json.loads(line)
+                if "word" not in data.keys():
+                    continue
+
+                if data["lang_code"] != lang_code:
+                    continue
+
+                if index not in index_id[lang_code]:
+                    continue
+
+                if "translations" not in data:
+                    continue
+
+                for translation in data["translations"]:
+                    if "word" not in translation:
+                        continue
+
+                    trans_word = translation["word"]
+
+                    if "code" in translation:
+                        trans_code = translation["code"]
+                    elif "lang_code" in translation:
+                        trans_code = translation["lang_code"]
+                    else:
+                        continue
+
+                    if trans_code not in index_id:
+                        continue
+
+                    if (trans_word, data["pos"], trans_code) not in word_lang_id:
+                        continue
+
+                    trans_ids = word_lang_id.get((trans_word, data["pos"], trans_code), [])
+                    for trans_id in trans_ids:
+                        try:
+                            cursor.execute(
+                                """
+                                INSERT INTO translations VALUES (?, ?)
+                                """,
+                                (index_id[lang_code][index], trans_id)
+                            )
+                        except Exception as e:
+                            print(f"Error inserting translation: {e}")
+        conn.commit()
+    conn.close()
+
+
 @task
 def extract_word_frequencies(ctx):
     index = WordIndex()
@@ -126,7 +205,7 @@ def extract_word_frequencies(ctx):
 @task
 def create_word_index(ctx):
     load_wiktextract()
-
+    load_wiktionary_traductions()
 
 @task
 def train_word2vec(ctx):
