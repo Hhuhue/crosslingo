@@ -9,7 +9,18 @@ from gensim.utils import simple_preprocess
 from nltk.corpus import stopwords
 from invoke import task
 
-from words import WordIndex
+def extract_frequencies() -> None:
+    files = glob.glob("./data/*/*-words.json")
+    freq_data = {}
+    for filename in files:
+        with open(filename, "r", encoding="utf-8") as file:
+            lang_code = os.path.basename(filename)[:2]
+            if lang_code == "sp":
+                lang_code = "es"
+            freq_data[lang_code] = json.load(file)
+
+    with open("data/word_freq.json", "w", encoding="utf-8") as file:
+        json.dump(freq_data, file)
 
 
 def load_wiktextract():
@@ -130,7 +141,7 @@ def load_wiktionary_traductions():
     for word_id, lang_code, source_index, position, word in rows:
         if (word, position, lang_code) not in word_lang_id:
             word_lang_id[(word, position, lang_code)] = []
-            
+
         if lang_code not in index_id:
             index_id[lang_code] = {}
         word_lang_id[(word, position, lang_code)].append(word_id)
@@ -194,19 +205,88 @@ def load_wiktionary_traductions():
                             print(f"Error inserting translation: {e}")
         conn.commit()
     conn.close()
+    
+
+def load_wiktionary_synonyms():
+    conn = sqlite3.connect("data/words.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, language_code, source_index, position, word FROM words")
+
+    rows = cursor.fetchall()
+    word_lang_id = {}
+    index_id = {}
+
+    for word_id, lang_code, source_index, position, word in rows:
+        if (word, position, lang_code) not in word_lang_id:
+            word_lang_id[(word, position, lang_code)] = []
+            
+        if lang_code not in index_id:
+            index_id[lang_code] = {}
+        word_lang_id[(word, position, lang_code)].append(word_id)
+        index_id[lang_code][source_index] = word_id
+
+    for extract in glob.glob("data/*.jsonl"):
+        lang_code = os.path.basename(extract).split("-")[0]
+
+        count = 0
+        with open(extract, "r", encoding="utf-8") as fp:
+            for count, _ in enumerate(fp, 1):
+                pass
+
+        if count == 0:
+            continue
+
+        with open(extract, "r", encoding="utf-8") as file:
+            for index, line in tqdm(enumerate(file), total=count, desc=lang_code):
+                data = json.loads(line)
+                if "word" not in data.keys():
+                    continue
+
+                if data["lang_code"] != lang_code:
+                    continue
+
+                if index not in index_id[lang_code]:
+                    continue
+
+                if "synonyms" not in data:
+                    continue
+
+                for synonym in data["synonyms"]:
+                    if "word" not in synonym:
+                        continue
+ 
+                    syn_word = synonym["word"]
+
+                    if (syn_word, data["pos"], lang_code) not in word_lang_id:
+                        continue
+
+                    syn_ids = word_lang_id.get((syn_word, data["pos"], lang_code), [])
+                    for syn_id in syn_ids:
+                        try:
+                            cursor.execute(
+                                """
+                                INSERT INTO synonyms VALUES (?, ?)
+                                """,
+                                (index_id[lang_code][index], syn_id)
+                            )
+                        except Exception as e:
+                            print(f"Error inserting translation: {e}")
+        conn.commit()
+    conn.close()
 
 
 @task
 def extract_word_frequencies(ctx):
-    index = WordIndex()
-    index.extract_frequencies()
+    extract_frequencies()
 
 
 @task
 def create_word_index(ctx):
     load_wiktextract()
+    load_wiktionary_synonyms()
     load_wiktionary_traductions()
-
+    
 @task
 def train_word2vec(ctx):
     files = glob.glob("./data/*/*-sentences.txt")

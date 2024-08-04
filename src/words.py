@@ -1,18 +1,15 @@
-import glob
-import json
-import linecache
-import os
-from typing import Tuple
+import sqlite3
+from typing import List, Tuple
 
 import pandas as pd
 from singleton_decorator import singleton
-from tqdm import tqdm
 
 from word_grid import Direction
 
 
 class Word(str):
     """Represents a crossword word placement"""
+
     def __new__(cls, word: pd.Series, position: Tuple[int, int], direction: Direction):
         """
         Args:
@@ -23,7 +20,7 @@ class Word(str):
         Returns:
             Word: A Word object
         """
-        obj = str.__new__(cls, word.word.item())
+        obj = str.__new__(cls, word.word)
         obj.meta = word
         obj.direction = direction
         obj.position = position
@@ -33,85 +30,79 @@ class Word(str):
 @singleton
 class WordIndex:
     def __init__(self) -> None:
-        if os.path.exists("data/word_index.csv"):
-            self.index = pd.read_csv("data/word_index.csv", encoding="utf-8")
-        else:
-            self.index = None
+        self.conn = sqlite3.connect("data/words.db")
+        self.index = pd.read_sql("""
+            SELECT 
+                w.*,
+                COUNT(d.id) AS num_definitions,
+                COUNT(s.synonym_id) AS num_synonyms,
+                COUNT(t.word_to_id) AS num_translations
+            FROM 
+                words w
+                LEFT JOIN definitions d ON w.id = d.word_id
+                LEFT JOIN synonyms s ON w.id = s.word_id
+                LEFT JOIN translations t ON w.id = t.word_from_id
+            GROUP BY 
+                w.id                         
+        """, self.conn)
 
-        if os.path.exists("data/word_freq.json"):
-            with open("data/word_freq.json", "r", encoding="utf-8") as file:
-                self.freq_data = json.load(file)
-        else:
-            self.freq_data = None
-            
-    def get_word_translation(self, word: Word, lang_to: str) -> Word:
-        if lang_to not in word.meta.trans.fillna(""):
+    def get_translation(self, word: Word, lang_to: str) -> List[Word]:
+        translations = pd.read_sql(
+            f"""
+            SELECT w2.*
+            FROM translations t
+            JOIN words w1 ON t.word_from_id = w1.id
+            JOIN words w2 ON t.word_to_id = w2.id
+            WHERE w1.id = '{word.meta.id}'; 
+        """,
+            self.conn,
+        )
+
+        if lang_to not in translations.language_code:
             return None
-        
-        word_translations = self.get_word_data(word)["translations"]
-        for trans in word_translations:
-            if trans["lang"] == lang_to:
-                return self.get_word(trans["word"], lang_to)
-            
+
+        words = []
+        for _, row in translations[translations.language_code == lang_to].iterrows():
+            words.append(Word(row, word.position, word.direction))
+
+        return words
+
+    def get_definition(self, word: Word) -> List[str]:
+        definitions = pd.read_sql(
+            f"""
+            SELECT d.definition 
+            FROM words w 
+            JOIN definitions d ON w.id = d.word_id 
+            WHERE w.id = {word.meta.id};
+        """,
+            self.conn,
+        )
+
+        return definitions.definition.to_list()
+
+    def get_synonym(self, word: Word) -> List[Word]:
+        synonyms = pd.read_sql(
+            f"""
+            SELECT w1.word AS original_word,
+            w2.word AS synonym_word
+            FROM 
+            synonyms s
+            JOIN words w1 ON s.word_id = w1.id
+            JOIN words w2 ON s.synonym_id = w2.id
+            WHERE 
+            w1.id = {word.meta.id}; 
+        """,
+            self.conn,
+        )
+
+        words = []
+        for _, row in synonyms.iterrows():
+            words.append(Word(row, word.position, word.direction))
+
+        return words
+
     def get_word(self, word: str, lang_code: str):
         return self.index[self.index.word == word & self.index.lang_code == lang_code]
-            
-    def get_word_data(self, word: Word) -> dict:
-        return json.loads(linecache.getline("data/raw-wiktextract-data.json", word.meta.index))
 
     def get_data(self) -> pd.DataFrame:
-        if self.index is None:
-            self.create_data()
-
         return self.index
-
-    def extract_frequencies(self) -> None:
-        files = glob.glob("./data/*/*-words.json")
-        self.freq_data = {}
-        for filename in files:
-            with open(filename, "r", encoding="utf-8") as file:
-                lang_code = os.path.basename(filename)[:2]
-                if lang_code == "sp":
-                    lang_code = "es"
-                self.freq_data[lang_code] = json.load(file)
-
-        with open("data/word_freq.json", "w", encoding="utf-8") as file:
-            json.dump(self.freq_data, file)
-
-    def create_data(self) -> None:
-        if self.freq_data is None:
-            self.extract_frequencies()
-
-        columns = ["word", "index", "len", "lang_code", "pos", "freq", "cats", "trans"]
-        word_index = []
-        with open("./data/raw-wiktextract-data.json", "r", encoding="utf-8") as file:
-            for index, line in tqdm(enumerate(file), total=9645555):
-                data = json.loads(line)
-                if "word" in data.keys():
-                    if data["lang_code"] not in self.freq_data:
-                        continue
-
-                    word_index.append(
-                        [
-                            data["word"],
-                            index,
-                            len(data["word"]),
-                            data["lang_code"],
-                            data["pos"],
-                            (
-                                self.freq_data[data["lang_code"]][data["word"]]
-                                if data["word"] in self.freq_data[data["lang_code"]]
-                                else None
-                            ),
-                            data["categories"] if "categories" in data else None,
-                            (
-                                [t["code"] for t in data["translations"] if "code" in t]
-                                if "translations" in data
-                                else None
-                            ),
-                        ]
-                    )
-
-        self.index = pd.DataFrame(word_index, columns=columns)
-        self.index.to_csv("word_index.csv", index=False)
-

@@ -55,3 +55,13 @@ CREATE TABLE translations (
     FOREIGN KEY (word_from_id) REFERENCES words (id),
     FOREIGN KEY (word_to_id) REFERENCES words (id)
 );
+
+DROP TABLE IF EXISTS synonyms;
+
+CREATE TABLE synonyms (
+    word_id INTEGER NOT NULL,
+    synonym_id INTEGER NOT NULL,
+    PRIMARY KEY (word_id, synonym_id),
+    FOREIGN KEY (word_id) REFERENCES words (id),
+    FOREIGN KEY (synonym_id) REFERENCES words (id)
+);

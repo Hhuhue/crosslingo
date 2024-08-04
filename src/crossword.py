@@ -24,29 +24,41 @@ class CrosswordStyle(Enum):
 class CluesMode(Enum):
     DEFINITION = 0
     SYNONYM = 1
-    PICTURE = 2
+    WORD = 2
 
 
 class Crossword:
     """Represents a crossword puzzle"""
 
-    def __init__(self, word_grid: WordGrid, words: List[Word], lang_from: str) -> None:
+    def __init__(self, word_grid: WordGrid, words: List[Word], lang_from: str, mode: CluesMode) -> None:
         self.word_grid = word_grid
         self.words = words
         self.lang_from = lang_from
         self.clues = []
         
-    def load_clues(self, mode: CluesMode):
-        fetch_translation = self.words[0].meta.lang_code != self.lang_from
+        fetch_translation = self.words[0].meta.language_code != self.lang_from
         index = WordIndex()
         for word in self.words:
             if fetch_translation:
-                word = index.get_word_translation(word, self.lang_from)
+                trans_words = index.get_translation(word, self.lang_from)
+                word = random.choice(trans_words)
 
             if mode == CluesMode.DEFINITION:
-                word_data = index.get_word_data(word)
-                self.clues.append(random.choice(word_data["senses"]))
-        
+                definitions = index.get_definition(word)
+                self.clues.append(random.choice(definitions))
+            elif mode == CluesMode.WORD and fetch_translation:
+                self.clues.append(word)
+            elif mode == CluesMode.SYNONYM:
+                synonyms = index.get_synonym(word)
+                self.clues.append(random.choice(synonyms))
+                
+    def to_dict(self):
+        return {
+            "word_grid": self.word_grid.puzzle.tolist(),
+            "words": [str(word) for word in self.words],
+            "clues": self.clues
+        }
+ 
 
 
 class CrosswordGenerator:
@@ -68,12 +80,20 @@ class CrosswordGenerator:
         self.snapshots = []
         self.style = style
 
-    def __get_dictionary(self, lang_code: str, theme: str = None) -> DataFrame:
-        dictionary = self.word_index[self.word_index["lang_code"] == lang_code]
-        dictionary.freq.fillna(1, inplace=True)
-        dictionary.loc[:, "word"] = dictionary["word"].astype(str)
-        dictionary = dictionary[dictionary["len"] >= MIN_WORD_LEN]
-        dictionary = dictionary[~dictionary["word"].str.contains(r"[0-9 '-]")]
+        # Pre process word index
+        self.word_index = self.word_index[~self.word_index.position.isin(['name', 'abbrev', 'symbol'])]
+        self.word_index = self.word_index[~self.word_index.word.str.contains(r"[0-9 '-.]")]
+        self.word_index = self.word_index[self.word_index.length >= MIN_WORD_LEN]
+        self.word_index.loc[:, "frequency"] = self.word_index["frequency"].fillna(1)
+
+    def __get_dictionary(self, lang_code: str, shape: tuple, clues_mode: CluesMode, theme: str = None) -> DataFrame:
+        dictionary = self.word_index[self.word_index.language_code == lang_code]
+        dictionary = dictionary[dictionary.length <= max(shape)]
+
+        if clues_mode == CluesMode.DEFINITION:
+            dictionary = dictionary[dictionary.num_definitions > 0]
+        elif clues_mode == CluesMode.SYNONYM:
+            dictionary = dictionary[dictionary.num_synonyms > 0]
 
         if theme:
             model = self.__load_word2vec(lang_code)
@@ -116,6 +136,7 @@ class CrosswordGenerator:
         lang_to: str = None,
         theme: str = None,
         store_steps: bool = False,
+        clues_mode: CluesMode = CluesMode.DEFINITION
     ) -> Crossword:
         """Generates a crossword for the given parameters
 
@@ -126,7 +147,7 @@ class CrosswordGenerator:
             lang_to (str, optional): Language code for the words only. Defaults to None.
             theme (str, optional): (Experimental) A theme for the words to use. Defaults to None.
             store_steps (bool, optional): Whether or not to save the crossword after a new word is added. Defaults to False.
-
+            clues_mode (CluesMode, optional): The type of clues to use for the crossword.
         Returns:
             Crossword: A crossword instance with used words and word grid
         """
@@ -138,8 +159,9 @@ class CrosswordGenerator:
             if self.style == CrosswordStyle.BRITISH
             else ValidationMode.HARD
         )
-        dictionary = self.__get_dictionary(lang_to or lang_from, theme)
-        dictionary = dictionary[dictionary["len"] <= max(shape)]
+        dictionary = self.__get_dictionary(lang_to or lang_from, shape, clues_mode, theme)
+        if lang_to and lang_to != lang_from:
+            dictionary = dictionary[dictionary.num_translations > 0]
 
         direction = random.choice([Direction.DOWN, Direction.ACROSS])
         word_list = []
@@ -197,7 +219,7 @@ class CrosswordGenerator:
             except Exception:
                 word = candidates.sample(1, random_state=12)
 
-            word = Word(word, position, direction)
+            word = Word(word.iloc[0], position, direction)
 
             # Add the word to the grid
             if not word_grid.add_word(position, direction, word):
@@ -236,11 +258,12 @@ class CrosswordGenerator:
             # Update progress
             pbar.update(1)
             pbar.set_description(
-                f"word: {word}, pos: {position}, dir: {direction.name.lower()}, cnd: {len(candidates)}, slots {len(positions[Direction.DOWN])}d {len(positions[Direction.ACROSS])}a",
+                f"word: {word}, pos: {position}, dir: {direction.name.lower()}, slots {len(positions[Direction.DOWN])}d {len(positions[Direction.ACROSS])}a",
                 refresh=True,
             )
 
-        return Crossword(word_grid, word_list, lang_from)
+        crossword = Crossword(word_grid, word_list, lang_from, clues_mode)
+        return crossword
 
 
 def generate_puzzle_template(shape: tuple, n_words: int) -> WordGrid:
@@ -321,7 +344,10 @@ if __name__ == "__main__":
     logger.add(sys.stdout, level="ERROR")
 
     word_index = WordIndex().get_data()
-    gen = CrosswordGenerator(word_index, CrosswordStyle.BRITISH, seed=23)
-    crossword = gen.generate((10, 20), "en", 25)
+    gen = CrosswordGenerator(word_index, CrosswordStyle.BRITISH, seed=18)
+    crossword = gen.generate((8, 16), "en", 20, lang_to="de", theme="cat")
     print(crossword.words)
     print(crossword.word_grid)
+
+    for clue in crossword.clues:
+        print(clue)
