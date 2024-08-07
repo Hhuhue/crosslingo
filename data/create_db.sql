@@ -25,7 +25,7 @@ CREATE TABLE definitions (
     word_id INTEGER NOT NULL,
     source_id INTEGER NOT NULL,
     definition TEXT NOT NULL,
-    FOREIGN KEY (word_id) REFERENCES words (id)
+    FOREIGN KEY (word_id) REFERENCES words (id),
     FOREIGN KEY (source_id) REFERENCES sources (id)
 );
 
@@ -43,7 +43,7 @@ CREATE TABLE word_categories (
     category_id INTEGER NOT NULL,
     PRIMARY KEY (word_id, category_id),
     FOREIGN KEY (word_id) REFERENCES words (id),
-    FOREIGN KEY (category_id) REFERENCES word_categories (id)
+    FOREIGN KEY (category_id) REFERENCES categories (id)
 );
 
 DROP TABLE IF EXISTS translations;

@@ -34,31 +34,36 @@ class WordIndex:
         self.index = pd.read_sql("""
             SELECT 
                 w.*,
+                COUNT(CASE WHEN t.word_to_id IN (SELECT id FROM words WHERE language_code = 'en') THEN 1 END) AS num_en,
+                COUNT(CASE WHEN t.word_to_id IN (SELECT id FROM words WHERE language_code = 'de') THEN 1 END) AS num_de,
+                COUNT(CASE WHEN t.word_to_id IN (SELECT id FROM words WHERE language_code = 'fr') THEN 1 END) AS num_fr,
+                COUNT(CASE WHEN t.word_to_id IN (SELECT id FROM words WHERE language_code = 'es') THEN 1 END) AS num_es,
                 COUNT(d.id) AS num_definitions,
-                COUNT(s.synonym_id) AS num_synonyms,
-                COUNT(t.word_to_id) AS num_translations
+                COUNT(s.synonym_id) AS num_synonyms
             FROM 
                 words w
+                LEFT JOIN translations t ON w.id = t.word_from_id
                 LEFT JOIN definitions d ON w.id = d.word_id
                 LEFT JOIN synonyms s ON w.id = s.word_id
-                LEFT JOIN translations t ON w.id = t.word_from_id
             GROUP BY 
-                w.id                         
+                w.id                    
         """, self.conn)
 
     def get_translation(self, word: Word, lang_to: str) -> List[Word]:
         translations = pd.read_sql(
             f"""
-            SELECT w2.*
+            SELECT 
+                w2.*
             FROM translations t
-            JOIN words w1 ON t.word_from_id = w1.id
-            JOIN words w2 ON t.word_to_id = w2.id
-            WHERE w1.id = '{word.meta.id}'; 
+                JOIN words w1 ON t.word_from_id = w1.id
+                JOIN words w2 ON t.word_to_id = w2.id
+            WHERE 
+                w1.id = {word.meta.id}; 
         """,
             self.conn,
         )
 
-        if lang_to not in translations.language_code:
+        if lang_to not in translations.language_code.tolist():
             return None
 
         words = []

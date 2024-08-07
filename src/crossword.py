@@ -24,7 +24,7 @@ class CrosswordStyle(Enum):
 class CluesMode(Enum):
     DEFINITION = 0
     SYNONYM = 1
-    WORD = 2
+    TRANSLATION = 2
 
 
 class Crossword:
@@ -46,7 +46,7 @@ class Crossword:
             if mode == CluesMode.DEFINITION:
                 definitions = index.get_definition(word)
                 self.clues.append(random.choice(definitions))
-            elif mode == CluesMode.WORD and fetch_translation:
+            elif mode == CluesMode.TRANSLATION and fetch_translation:
                 self.clues.append(word)
             elif mode == CluesMode.SYNONYM:
                 synonyms = index.get_synonym(word)
@@ -161,7 +161,7 @@ class CrosswordGenerator:
         )
         dictionary = self.__get_dictionary(lang_to or lang_from, shape, clues_mode, theme)
         if lang_to and lang_to != lang_from:
-            dictionary = dictionary[dictionary.num_translations > 0]
+            dictionary = dictionary[dictionary[f"num_{lang_from}"] > 0]
 
         direction = random.choice([Direction.DOWN, Direction.ACROSS])
         word_list = []
@@ -214,7 +214,7 @@ class CrosswordGenerator:
 
             # Chose a word by its frequency and length if possible
             try:
-                weights = np.log(np.log(dictionary.freq) + 1) + dictionary.len
+                weights = np.log(np.log(dictionary.frequency) + 1) + dictionary.length
                 word = candidates.sample(1, weights=weights, random_state=self.seed)
             except Exception:
                 word = candidates.sample(1, random_state=12)
@@ -345,7 +345,7 @@ if __name__ == "__main__":
 
     word_index = WordIndex().get_data()
     gen = CrosswordGenerator(word_index, CrosswordStyle.BRITISH, seed=18)
-    crossword = gen.generate((8, 16), "en", 20, lang_to="de", theme="cat")
+    crossword = gen.generate((8, 16), "en", 20, lang_to="de", clues_mode=CluesMode.TRANSLATION)
     print(crossword.words)
     print(crossword.word_grid)
 
